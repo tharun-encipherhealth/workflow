@@ -35,7 +35,7 @@ spec:
     spec:
       containers:
         - name: elasticsearch
-            image: docker.elastic.co/elasticsearch/elasticsearch:7.10.0   # Replace with desired version
+          image: docker.elastic.co/elasticsearch/elasticsearch:7.10.0   # Replace with desired version
           env:
             - name: discovery.type
               value: "single-node"
@@ -43,6 +43,7 @@ spec:
               value: "-Xms512m -Xmx512m"
           ports:
             - containerPort: 9200
+
 
 ---
 
