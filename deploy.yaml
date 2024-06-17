@@ -1,87 +1,187 @@
-version: "3.5"
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: temporal
 
-services:
-  elasticsearch:
-    container_name: temporal-elasticsearch
-    environment:
-      - cluster.routing.allocation.disk.threshold_enabled=true
-      - cluster.routing.allocation.disk.watermark.low=512mb
-      - cluster.routing.allocation.disk.watermark.high=256mb
-      - cluster.routing.allocation.disk.watermark.flood_stage=128mb
-      - discovery.type=single-node
-      - ES_JAVA_OPTS=-Xms256m -Xmx256m
-      - xpack.security.enabled=false
-    image: elasticsearch:${ELASTICSEARCH_VERSION}
-    networks:
-      - temporal-network
-    expose:
-      - 9200
-    volumes:
-      - /var/lib/elasticsearch/data
+---
 
-  postgresql:
-    container_name: temporal-postgresql
-    environment:
-      POSTGRES_PASSWORD: temporal
-      POSTGRES_USER: temporal
-    image: postgres:${POSTGRESQL_VERSION}
-    networks:
-      - temporal-network
-    expose:
-      - 5432
-    volumes:
-      - /var/lib/postgresql/data
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: temporal
+spec:
+  ports:
+    - port: 9200
+  selector:
+    app: elasticsearch
 
-  temporal:
-    container_name: temporal
-    depends_on:
-      - postgresql
-      - elasticsearch
-    environment:
-      - DB=postgres12
-      - DB_PORT=5432
-      - POSTGRES_USER=temporal
-      - POSTGRES_PWD=temporal
-      - POSTGRES_SEEDS=postgresql
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-      - ENABLE_ES=true
-      - ES_SEEDS=elasticsearch
-      - ES_VERSION=v7
-    image: temporalio/auto-setup:${TEMPORAL_VERSION}
-    networks:
-      - temporal-network
-    ports:
-      - 7233:7233
-    volumes:
-      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+---
 
-  temporal-admin-tools:
-    container_name: temporal-admin-tools
-    depends_on:
-      - temporal
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CLI_ADDRESS=temporal:7233
-    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}
-    networks:
-      - temporal-network
-    stdin_open: true
-    tty: true
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticsearch
+  namespace: temporal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      containers:
+        - name: elasticsearch
+          image: "elasticsearch:7.10.0" # Replace with desired version
+          env:
+            - name: discovery.type
+              value: "single-node"
+            - name: ES_JAVA_OPTS
+              value: "-Xms512m -Xmx512m"
+          ports:
+            - containerPort: 9200
 
-  temporal-ui:
-    container_name: temporal-ui
-    depends_on:
-      - temporal
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
-    image: temporalio/ui:${TEMPORAL_UI_VERSION}
-    networks:
-      - temporal-network
-    ports:
-      - 8080:8080
+---
 
-networks:
-  temporal-network:
-    driver: bridge
-    name: temporal-network
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+  namespace: temporal
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: postgresql
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgresql
+  namespace: temporal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: "postgres:13" # Replace with desired version
+          env:
+            - name: POSTGRES_PASSWORD
+              value: "temporal"
+            - name: POSTGRES_USER
+              value: "temporal"
+          ports:
+            - containerPort: 5432
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal
+  namespace: temporal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal
+  template:
+    metadata:
+      labels:
+        app: temporal
+    spec:
+      containers:
+        - name: temporal
+          image: "temporalio/auto-setup:1.7.0" # Replace with desired version
+          env:
+            - name: DB
+              value: "postgresql"
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: "temporal"
+            - name: POSTGRES_PWD
+              value: "temporal"
+            - name: POSTGRES_SEEDS
+              value: "postgresql"
+            - name: ENABLE_ES
+              value: "true"
+            - name: ES_SEEDS
+              value: "elasticsearch"
+            - name: ES_VERSION
+              value: "v7"
+          ports:
+            - containerPort: 7233
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal
+  namespace: temporal
+spec:
+  type: NodePort
+  ports:
+    - port: 7233
+      targetPort: 7233
+      nodePort: 30733 # Optional: specify a node port; otherwise, one will be assigned automatically
+  selector:
+    app: temporal
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-ui
+  namespace: temporal
+spec:
+  replicas:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-ui
+  template:
+    metadata:
+      labels:
+        app: temporal-ui
+    spec:
+      containers:
+        - name: temporal-ui
+          image: "temporalio/ui:1.7.0" # Replace with desired version
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: "temporal:7233"
+            - name: TEMPORAL_CORS_ORIGINS
+              value: "http://localhost:8088"
+          ports:
+            - containerPort: 8080
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-ui
+  namespace: temporal
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30808 # Optional: specify a node port; otherwise, one will be assigned automatically
+  selector:
+    app: temporal-ui
