@@ -182,6 +182,6 @@ spec:
   ports:
     - port: 8088
       targetPort: 8080
-      nodePort: 30808
+      nodePort: 30809
   selector:
     app: temporal-ui
