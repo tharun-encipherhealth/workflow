@@ -138,7 +138,7 @@ spec:
   ports:
     - port: 7233
       targetPort: 7233
-      nodePort: 30733 # Optional: specify a node port; otherwise, one will be assigned automatically
+      nodePort: 30733
   selector:
     app: temporal
 
@@ -181,7 +181,7 @@ spec:
   type: NodePort
   ports:
     - port: 8088
-      targetPort: 8088
-      nodePort: 30808 # Optional: specify a node port; otherwise, one will be assigned automatically
+      targetPort: 8080
+      nodePort: 30808
   selector:
     app: temporal-ui
